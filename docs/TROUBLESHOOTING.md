@@ -435,7 +435,7 @@ $session = Read-Host '输入之前记录的 Pi session ID 或会话文件完整�
 <a id="report"></a>
 ## 反馈问题：复制这张小表就够了
 
-普通问题提交到 [Ren’Pi Issues](https://github.com/henryd2341/renpi/issues)。**当前仓库尚未上传**，可先在本地填好下表，待入口开放后提交。
+普通问题提交到 [Ren’Pi Issues](https://github.com/henryd2341/renpi/issues)。
 
 软件漏洞使用仓库的 **Private vulnerability reporting**，按[私密报告流程](../SECURITY.md#reporting)操作；不要在普通 Issue 中公开漏洞细节或凭据。
 

@@ -6,8 +6,6 @@ Ren’Pi 把 [Pi](https://pi.dev/) 的 AI 创作能力与 [Ren’Py](https://www
 
 你可以从仓库附带的教程开始，也可以创建自己的故事项目。**第一次用，先打开教程开场就够了。**
 
-**项目仓库：** [henryd2341/renpi](https://github.com/henryd2341/renpi)。当前尚未上传；下文的在线下载、Issue 和 PR 入口待发布后使用。已经拿到本地源码时，先完成 A1，再跳过 A2，继续 A3。
-
 > 当前使用路径：**Windows x64 + Pi >=1.1.0（正式版）+ Ren’Py SDK**。这是一套创作工具，不是双击即玩的独立游戏安装包。其他系统、真实模型、生图和游戏打包都需要分别验证。
 
 **版本要求与测试范围：** 最低版本是 1.1.0，1.2.0 也满足要求。更高正式版允许尝试，但不代表已经验证兼容；带 `alpha`、`beta`、`rc` 的预发布版暂不接受。真实模型、GUI 和完整创作流程仍需分别验证。
@@ -60,7 +58,7 @@ git lfs version
 
 先打开你想存放项目的文件夹，例如自己创建的 `D:\Projects`。在资源管理器的地址栏输入 `powershell`，按回车。
 
-仓库发布后，在这个 PowerShell 窗口执行下面的命令。当前尚未上传时，请先保留已有本地源码，不必反复尝试下载。
+在这个 PowerShell 窗口执行下面的命令。
 
 ```powershell
 git clone https://github.com/henryd2341/renpi.git renpi

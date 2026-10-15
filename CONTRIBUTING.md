@@ -19,8 +19,6 @@ Issue 是仓库的公开问题记录；PR（Pull Request）是请求维护者检
 - [Issues：反馈普通问题、讨论功能](https://github.com/henryd2341/renpi/issues)
 - [Pull requests：提交修改](https://github.com/henryd2341/renpi/pulls)
 
-**当前仓库尚未上传。** 在线入口待发布后使用；可以先在本地整理复现步骤与修改。漏洞反馈使用仓库的 Private vulnerability reporting，具体步骤见[安全说明](SECURITY.md#reporting)。
-
 ## 开始前：确认你改的是哪一层
 
 | 位置 | 职责 |
