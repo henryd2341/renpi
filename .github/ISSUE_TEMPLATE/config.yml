@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私密报告安全漏洞
+    url: https://github.com/henryd2341/renpi/security/advisories/new
+    about: 凭据泄漏、越界访问等漏洞使用 Private vulnerability reporting；请勿在公开 Issue 中披露细节。
+  - name: 先按现象查找解决办法
+    url: https://github.com/henryd2341/renpi/blob/main/docs/TROUBLESHOOTING.md
+    about: 按报错和使用阶段定位问题，一次处理一步。

@@ -1,0 +1,72 @@
+name: 运行问题
+description: 启动报错、画面异常、生成或分支行为与预期不同。
+title: "[问题] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        一次反馈一个问题，按顺序填写即可。**不知道的项目写“未确认”**，不需要先学会所有工具。
+
+        先看看[故障排查](https://github.com/henryd2341/renpi/blob/main/docs/TROUBLESHOOTING.md)和[已有问题](https://github.com/henryd2341/renpi/issues)，也许已有处理办法。
+
+        **这里的内容会公开。** 不要上传 API Key、令牌、私人故事、完整会话或项目备份。怀疑凭据泄漏、越界访问等漏洞时，请走 [Private vulnerability reporting](https://github.com/henryd2341/renpi/security/advisories/new)，详见[安全说明](https://github.com/henryd2341/renpi/blob/main/SECURITY.md#reporting)。
+  - type: dropdown
+    id: stage
+    attributes:
+      label: 1. 问题出现在哪一步？
+      options:
+        - 下载或安装工具
+        - 打开教程或游戏画面
+        - 启动 Pi 或加载 Ren’Pi 扩展
+        - 连接模型、生成文字或图片
+        - 桥接、选择、分支或接入内容
+        - 存档、回看或恢复任务
+        - 其他 / 还不确定
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 2. 你原本期待什么，实际发生了什么？
+      description: 用自己的话描述即可；有报错时，保留第一条报错和必要上下文。
+      placeholder: |
+        我想做什么：
+        原本期待看到：
+        实际看到：
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 3. 怎样再次遇到这个问题？
+      description: 写出点击的按钮或输入的命令。如果只出现过一次，就写最后几步操作。
+      placeholder: |
+        1. 打开……
+        2. 点击 / 输入……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 4. 你的使用环境
+      description: 只填已知信息。Pi 版本可用 pi --version 查看，Node 版本可用 node --version 查看；没使用的工具写“未使用”。
+      placeholder: |
+        系统与架构（例如 Windows 11 x64）：
+        Pi / Node / Ren’Py 版本：
+        Ren’Pi 提交号、发布版本或下载来源：
+        使用仓库教程还是自己的项目：
+        是否修改过代码或项目内容：
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 5. 已尝试的办法、截图或日志（选填）
+      description: 可粘贴或拖入已脱敏的截图；只附必要日志片段。遮盖用户名、私人路径、密钥和私人内容，保留报错文字。
+      placeholder: 我试过……，结果是……
+  - type: checkboxes
+    id: public-check
+    attributes:
+      label: 提交前最后看一眼
+      options:
+        - label: 这是普通问题；我已移除凭据、私人资料和应私密报告的漏洞细节。
+          required: true

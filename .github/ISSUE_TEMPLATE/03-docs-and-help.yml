@@ -1,0 +1,40 @@
+name: 文档反馈 / 使用求助
+description: 某一步看不懂、文档跳步或链接失效；也欢迎提出阅读与无障碍改进。
+title: "[文档/求助] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **指出一句看不懂的话就很有帮助。** 不需要会编程，也不需要说明个人健康情况。
+
+        [入门说明](https://github.com/henryd2341/renpi/blob/main/README.md) · [按现象排查](https://github.com/henryd2341/renpi/blob/main/docs/TROUBLESHOOTING.md)
+
+        本表单会公开。请隐藏私人内容、密钥与令牌；漏洞请走 [Private vulnerability reporting](https://github.com/henryd2341/renpi/security/advisories/new)。
+  - type: input
+    id: location
+    attributes:
+      label: 1. 卡在哪一页、哪一步？
+      description: 粘贴页面链接、小标题或原文都可以；暂时找不到位置就写“未确认”。
+      placeholder: 例如：README 的 B2，或故障排查第 6 节。
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: 2. 哪部分让你困惑？
+      description: 说说你想做什么、读到哪里卡住，或指出哪句有误。也可以反馈字号、对比度、动画或阅读顺序的问题。
+      placeholder: 我想……；读到“……”时，我不清楚接下来应该……
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 3. 其他线索或建议（选填）
+      description: 可补充系统、工具版本、尝试过的步骤或脱敏截图；不知道的内容可以留空。
+  - type: checkboxes
+    id: public-check
+    attributes:
+      label: 提交前最后看一眼
+      options:
+        - label: 我确认正文和附件适合公开，未包含凭据、私人资料或漏洞细节。
+          required: true

@@ -220,6 +220,10 @@ cython_debug/
 
 # Dev
 .*/
+# Publish issue forms while keeping other hidden development files ignored.
+!/.github/
+/.github/*
+!/.github/ISSUE_TEMPLATE/
 evidence/
 work/
 EVIDENCE*.md

@@ -1,0 +1,40 @@
+name: 功能建议
+description: 说明你想完成的事情，以及现在卡住的地方。
+title: "[建议] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **先说需求，不用先设计实现。** 一次讨论一个改进，简短说明也欢迎。
+
+        可以先搜索[已有建议](https://github.com/henryd2341/renpi/issues)，再看看[贡献指南](https://github.com/henryd2341/renpi/blob/main/CONTRIBUTING.md)。本表单是公开讨论，不代表排期承诺。
+
+        漏洞请走 [Private vulnerability reporting](https://github.com/henryd2341/renpi/security/advisories/new)，不要把凭据或漏洞细节放在这里。
+  - type: textarea
+    id: need
+    attributes:
+      label: 1. 你想做什么？现在有什么不方便？
+      description: 给一个具体使用场景即可，例如你在教程或创作流程的哪一步遇到困难。
+      placeholder: 当我……时，需要……，但现在……
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 2. 怎样才算解决了？
+      description: 描述你希望看到的结果，不需要写技术方案。
+      placeholder: 如果能……，我就可以……
+    validations:
+      required: true
+  - type: textarea
+    id: ideas
+    attributes:
+      label: 3. 你的想法或目前的处理办法（选填）
+      description: 可以附草图、例子或参考链接；请先遮盖私人内容。
+  - type: checkboxes
+    id: public-check
+    attributes:
+      label: 提交前最后看一眼
+      options:
+        - label: 我确认正文和附件适合公开，未包含凭据、私人资料或漏洞细节。
+          required: true
