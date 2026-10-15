@@ -1,145 +1,138 @@
-# Ren’Pi 真模型入口
+# Ren’Pi 扩展
 
-针对 **Pi 1.1.0**。直接加载，不依赖旧 bridge、固定 Provider 或 fixture 环境变量，不新增 npm 依赖。入口会检查准确版本；0.75.4 使用回滚副本，不共用新版入口。
+Ren’Pi 的 Pi 入口、专业委派与公共 GUI 桥接。当前入口要求 **Pi 1.1.0**；引擎校验器使用 **Windows x64 Ren’Py SDK** 的目录布局。模型、认证和工具沿用当前父 Pi 会话。
 
 ## 启动
 
-本机 npm 版位于 `D:\AppData\Roaming\npm\pi.cmd`；默认 `pi` 当前仍解析到 pnpm 的 0.75.4。使用绝对路径选择新版，先以独立配置和试验项目启动：
+准备已安装的 Pi 1.1.0、Ren’Py SDK 和游戏项目目录。在本仓库根目录打开 PowerShell，按本机实际安装位置填写：
 
 ```powershell
-New-Item -ItemType Directory -Force 'E:\RenpiValidation\kong-yiji-001' | Out-Null
-$env:PI_CODING_AGENT_DIR = 'E:\RenpiValidation\pi-1.1.0-agent'
-Set-Location 'E:\RenpiValidation\kong-yiji-001'
-& 'D:\AppData\Roaming\npm\pi.cmd' --version
-& 'D:\AppData\Roaming\npm\pi.cmd' --extension 'E:\PersonalAI\renpi\extensions\renpi\index.ts'
+$repo = (Get-Location).Path
+$pi = Read-Host 'Pi 1.1.0 入口文件的完整路径（例如已安装的 pi.cmd）'
+$project = (Resolve-Path -LiteralPath (Read-Host '游戏项目目录')).Path
+$env:RENPY_HOME = (Resolve-Path -LiteralPath (Read-Host 'RenPy SDK 目录')).Path
+& $pi --version
 ```
 
-预期版本为 `1.1.0`。独立配置初次启动需要配置模型与认证，例如在 Pi 内使用 `/login`；它不会自动复制旧配置。环境变量只影响当前 PowerShell 及其子进程，关闭这个终端后恢复原启动环境。正式复用个人配置前，单独备份配置和会话，避免新旧 Pi 交替更新同一份数据。
+确认版本输出为 `1.1.0`，再加载扩展：
 
-扩展沿用当前父 Pi 会话的模型和认证设置，`--provider` / `--model` 参数照常使用。SDK 沿用 `RENPY_HOME`，缺失时在环境扫描阶段查明，不阻止扩展加载。扩展通过 `resources_discover` 加载仓库内五组技能，无需复制到全局技能目录。搬迁入口时保持 `extensions/renpi` 与 `skills` 的相对位置。
+```powershell
+Set-Location -LiteralPath $project
+& $pi --extension (Join-Path $repo 'extensions/renpi/index.ts')
+```
 
-进入 Pi 后：
+这里的当前目录是**游戏项目**，扩展路径属于 **Ren’Pi 仓库**。保留仓库内 `extensions/renpi/` 与 `skills/` 的相对布局；扩展自行发现角色技能，无需复制到全局技能目录。
 
-1. `/renpi-status`：核对项目路径、模型、工具和 SDK 路径。此命令不调用模型。
-2. `/renpi-init 原文是当前目录的孔乙己.txt，暂无图片音乐资产；先扫描项目和环境，展示已知清单，再按初始化技能确认最小范围。`
-3. Coding 可调用 `renpi_delegate`，分别委派 `writing`、`image`、`review`。
+默认复用当前 Pi 配置。需要独立配置时，在启动前设置自己的 `PI_CODING_AGENT_DIR`；新配置需自行配置模型和认证，例如使用 `/login`。`--provider`、`--model` 和 `--session` 仍由 Pi 处理。扩展加载本身不要求立即使用 Ren’Py SDK，但基础安装和候选校验需要有效的 `RENPY_HOME`。
 
-## 已接通的范围
+进入 Pi 后先用 `/renpi-status` 核对项目路径、模型、工具、SDK 和桥接状态；它不调用模型。`/renpi-init <本项目的初始化需求>` 用于制作任务，会进入模型工作流程，按需执行。
 
-### 公共 GUI 桥接
+## 入口与职责
 
-创建游戏项目的 `game/` 后，在同一个 Pi 中执行 `/renpi-setup`（Coding 可调用
-`renpi_bridge_setup`）。它安装仓库随附的 Python/RPY 运行时，保留正文、存档和
-既有分支；文件冲突会保留原件并报告。以 `/renpi-status` 的
-`gui_bridge.connected` 检查当前连接。
+| 文件或目录 | 职责 |
+| --- | --- |
+| [index.ts](index.ts)、[model-runtime.ts](model-runtime.ts)、[runtime.mjs](runtime.mjs) | Pi 入口、专业委派、父模型接入及输出边界 |
+| [bridge-extension.ts](bridge-extension.ts)、[bridge.mjs](bridge.mjs) | Pi 与 GUI 连接、生产任务、候选和接入状态 |
+| [project.mjs](project.mjs)、[foundation.mjs](foundation.mjs) | 项目安装、身份校验及首次基础内容接入 |
+| [bridge-common.mjs](bridge-common.mjs)、[validation_files.py](validation_files.py) | 路径与文件操作、SDK 校验、验证输入准备 |
+| [template/game/](template/game/) | 安装到游戏项目的公共 RPY/Python 客户端 |
+| `*.test.mjs`、`*.test.py` | 单元与回归测试；不是产品启动入口 |
+| `*-check.mjs`、`*-check.py` | 显式执行的 SDK/引擎集成检查，执行范围见下表 |
+
+## 公共桥接与基础安装
+
+游戏项目已有 `game/` 后，在同一个 Pi 中执行 `/renpi-setup`，或由 Coding 调用 `renpi_bridge_setup`。安装保留已有正文、存档和分支，冲突文件保留原件并报告。连接结果以 `/renpi-status` 的 `gui_bridge.connected` 为准。
+
+| 操作 | 用途与完成边界 |
+| --- | --- |
+| `renpi_delegate` | 委派 Writing、Image、Review；返回报告和文件不等于候选就绪或接入完成 |
+| `renpi_install_foundation` | 首次安装明确列出的开场、共享定义和资产；先关闭 GUI，且尚未产生生产分支 |
+| `renpi_submit_candidate` | 校验并冻结当前任务的输出；`ready` 之后仍需 GUI 采用、重载及加载确认 |
+| `renpi_fail_production` | 记录当前生产任务的明确失败原因，保留已有输出 |
+
+基础安装只处理项目内 `authoring/` 下选定的文件，按相同相对路径写入 `game/`；相同字节的资产复用，不同内容原件报冲突。相同清单重复执行用于核对安装；已有基础内容的修改另行确认范围。安装回执与实际 GUI 阅读验收分别记录。
+
+完成桥接 setup 后，也可关闭 Pi 和 GUI，使用相同安装逻辑的离线入口。以下复用启动节设置的 `$repo`、`$project` 与 `RENPY_HOME`，源目录和清单按项目实际内容填写：
+
+```powershell
+$source = Read-Host '项目内的创作源相对目录（位于 authoring/ 下）'
+$files = @('options.rpy', 'screens.rpy', 'opening.rpy') # 示例；按实际输入调整，并列出所需资产。
+node (Join-Path $repo 'extensions/renpi/foundation-install.mjs') $project $source @files
+```
+
+若中断留下 `foundation.pending.json`，保留记录及原始输入，在 Pi/GUI 关闭时用**原源目录和原文件清单**重跑。恢复完成前暂停连接和阅读。
+
+项目只声明稳定选择点、选项与故事入口，例如：
 
 ```renpy
 call renpi_choice("opening.choice", [("talk", "继续交谈"), ("rest", "准备休息")])
 ```
 
-这两个参数是项目声明，不是另一套桥接实现。公共运行时负责 loopback HTTP
-身份检查、耐久请求/选项绑定/HEAD、制作排队、候选验证、加载确认与失败撤销。
-Coding 仍通过现有 `renpi_delegate` 制作实际产物，用 `renpi_submit_candidate`
-提交分配目录，GUI 在衔接点接入。普通重选复用绑定；明确 Retry 创建新分支。
+通信、幂等、分支绑定、候选接入及加载确认由公共运行时管理。制作与恢复步骤见[公共桥接契约](../../skills/renpi-coding/references/bridge-contract.md)，项目呈现层保留为 screen/style 与内容声明。
 
-公共候选校验跳过非 ASCII 文件名检查，报告明确记录 `ignored_checks`；编译、
-其余 lint、来源一致性和加载 ACK 继续生效。策略仅注入隔离 SDK common 副本，
-原 SDK、项目文件名和受管客户端保持原样。修改 `.mjs` 后，完整退出 Pi 进程再以
-`--session <原会话路径或 ID>` 启动；当前加载器的原生 ESM 缓存会跨 `/reload` 保留，
-仅桥接重新连接不代表新版模块已加载。恢复原项目与会话，保留已有任务和产物。
-当前任务即使失败或中断，也可显式提交保留的输出，无需重新生成正文或再建任务。
-Continue 后以当前 `job_id` 为准；旧 ID 的错误会直接提示替代任务 ID。
+## 检查入口
 
-详细调用及限制见 [公共桥接契约](../../skills/renpi-coding/references/bridge-contract.md)。
-`prototypes/bridge` 保留实验范围；新项目使用这里的公共运行时，不复制实验工程。
-既有私有触发器需单独迁移，安装器不会自动删除它们或推断旧请求的业务分支。
+以下入口独立运行，不作为扩展启动的必经步骤。需要时在仓库根目录另开 PowerShell，并明确本次执行级别。Python 检查驱动使用已安装的完整 Python 3.11+；实际引擎由所选 Ren’Py SDK 自带的 Python 启动。
 
-- 当前 cwd 就是游戏项目；不替换主 Pi 的模型、认证或工具配置。
-- 子任务通过 Pi SDK 使用独立上下文/会话，显式继承当前模型、认证和 thinking；不是多个角色共用同一段聊天，也不是固定文本替身。
-- 子会话使用公开 `ModelRuntime` 接口，通过父会话的公开模型注册表发送请求。认证在父运行时按请求解析，不复制密钥；保留临时凭据、动态 provider、端点和认证 header。子会话归属 header 作为默认值，父 header（含删除标记）优先。
-- 首版串行委派，每次任务有独立输出目录，避免共享文件并发写入。Writing 交付、Image 交付由 Coding 读取后整合。Review 只有只读工具，报告由协调器保存。
-- 子会话、任务、产物和报告在项目的 `.renpi-live/tasks/<任务 ID>/`。`receipt.json` 的 `returned` 只代表回合返回，不代表作品通过审查或已接入。
-- 取消向子会话传递；退出会中止准备中或运行中的委派并等待清理。委派期间阻止切换/分叉会话及重叠委派。中断记录保留供核对，首版不自动续派或恢复子任务。
+| 检查 | 依赖与执行范围 |
+| --- | --- |
+| `*.test.mjs` | Node 内建测试，使用临时夹具；不启动 Ren’Py 或真实模型 |
+| `client.test.py`、`validation_files.test.py` | Python 标准库测试；部分检查涉及本地 HTTP 或文件软链接，不启动 Ren’Py 或真实模型 |
+| `load-check.mjs` | 参数为 Pi SDK 的 `dist/index.js` 绝对路径；验证实际 SDK 加载，不调用真实模型 |
+| `sdk-check.mjs` | 同上；使用可控 provider 检查委派，阻断外部网络 |
+| `bridge-lint-sdk-check.mjs` | 读取 `RENPY_HOME`，执行真实 Ren’Py compile/lint，不启动 GUI |
+| `bridge-sdk-check.mjs` | 同时需要 Pi SDK 入口参数与 `RENPY_HOME`；执行实际委派、公共桥接及 Ren’Py 校验，不启动 GUI 或真实 provider |
+| `client-sdk-check.py` | 执行真实 compile/lint，并启动 Ren’Py 检查重载、入口与加载 ACK；**包含引擎运行** |
+| `client-e2e-check.py` | 启动本地 Node 桥接及 Ren’Py，自动操作真实选择界面；**属于 GUI E2E**，不调用真实 provider |
 
-## 明确边界
-
-- 公共桥接只管理已安装项目；未安装时 `gui_bridge.connected` 为 false。候选限目标分支专属目录，任意共享代码改写、任意旧档结构迁移和未知外部作业自动重提不属于 v1 的承诺。运行中的 Pi 提供连接，关闭 Pi 后 GUI 保留任务等待重连。
-- Image 可通过 shell 调用已配置的后端；不会自动获得 Codex 图像工具，也不会继承主 Pi 的自定义 extension 工具。后端缺失时按技能报告缺项，不把提示词当图片。
-- 子会话只加载本角色技能和内建工具，不自动接入 MCP/codemode；通过父运行时发起模型请求，但不继承父会话的消息改写 hooks、其他扩展、retry 或 compaction 个性设置。子会话关闭 cache warming，避免新增后台预热请求；子会话自身压缩请求沿用父认证路径。
-- 委派要求选择具体模型。Pi 的 `pi-virtual` 虚拟模型路由本轮不接入，会在创建任务前明确报错；不静默选择替代模型。
-- Writing 的 write/edit 限制到分配的输出目录；Review 无写入/shell 工具。主 Pi 和 Image 的 shell 仍具有当前 OS 用户权限：换 cwd 不构成文件系统沙箱。需要强隔离时在有写入边界的宿主或临时虚拟机运行。
-- 默认沿用个人 Pi 配置目录。需要隔离设置和会话时，先指定 `PI_CODING_AGENT_DIR` 与 `--session-dir`，再在该配置下准备所需模型认证。
-
-## 验证
-
-`runtime.test.mjs` 使用 Node 内建测试；`load-check.mjs` 验证真实 SDK 加载；`sdk-check.mjs` 使用真实 SDK 和可控 provider 验证委派，同时禁用网络访问、使用临时配置与测试凭据。后两者传入已安装 1.1.0 SDK 的绝对路径，不新增项目依赖。
+### 单元检查示例
 
 ```powershell
-Set-Location 'E:\PersonalAI\renpi'
-$sdk = 'D:\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\dist\index.js'
-node --test --test-isolation=none 'E:\PersonalAI\renpi\extensions\renpi\runtime.test.mjs'
-node 'E:\PersonalAI\renpi\extensions\renpi\load-check.mjs' $sdk
-node 'E:\PersonalAI\renpi\extensions\renpi\sdk-check.mjs' $sdk
+$python = Read-Host '已安装的完整 Python 3.11+ 解释器路径'
+$tests = Get-ChildItem -LiteralPath './extensions/renpi' -Filter '*.test.mjs'
+node --test --test-isolation=none $tests.FullName
+& $python -B ./extensions/renpi/client.test.py
+& $python -B ./extensions/renpi/validation_files.test.py
 ```
 
-真实模型委派、生图和 GUI 运行分别验收，不由加载检查代替。
-
-### 公共桥接验证（2026-10-13）
-
-以下为此前版本的验证记录。后续 base/生成分支路线区分、文件名 lint 策略和失败任务重交修复已补回归，
-按用户要求尚未执行任何测试、编译或 lint；下列结果不作为该修复的验证证据。
-
-文件名 lint 策略的待执行检查为 `extensions/renpi/bridge-lint-sdk-check.mjs`
-（需要 `RENPY_HOME`）。覆盖中文文件名通过、缺失跳转目标仍失败、语法错误仍失败；
-仅使用临时项目并保留证据，不启动游戏 GUI 或调用模型。
-
-- 公共运行时、安装器和委派边界 Node 测试 29/29；Python 客户端测试 11/11，
-  包括正常/重定向/鉴权失败/服务端失败响应的资源关闭。
-- 真实 Pi SDK 桥接检查：21 个断言、11 次可控 provider 请求。GUI 事件实际触发
-  主 Coding、Writing 子会话、文件交付与隔离 Ren’Py compile/lint；覆盖主回合越界
-  写入、shell 拦截、提交后冻结和取消传播。外部网络/真实模型请求均为 0。
-- 真实 Ren’Py 屏幕 action 端到端：选择 → 制作 → 接入 → reload → 实际恢复的
-  事务身份确认 → 进入剧情 → 嵌套选择返回 → 重选复用；1 次制作、2 次阅读，
-  ACK committed，HEAD 回到 base。界面动作由测试驱动，未作人工视觉验收。
-- 原委派 SDK 回归 241 个断言/15 场景、原型桥接回归 286/286；strict TypeScript
-  检查 0 诊断。第二个独立项目安装相同客户端、保留不同项目身份的检查通过。
-- 独立定点审查已核对并发安装锁、取消后委派阻断、旧存档 ACK 身份、候选继续
-  路径、项目外私有凭据及 SDK common/存档隔离。
-
-可重跑命令（完整 Python 用于驱动测试；实际游戏由指定 SDK 自带 Python 运行）：
+只核对这两个 Python 驱动的 SDK 选择与提前报错，可执行更小的检查；使用空的 SDK 文件夹具并在创建运行工作区前截断，不启动引擎：
 
 ```powershell
-$env:RENPY_HOME = 'E:\Renpy\renpy-8.5.3-sdk'
-$python = 'C:\Users\18248\AppData\Local\Programs\Python\Python312\python.exe'
-node --test --test-isolation=none extensions/renpi/runtime.test.mjs extensions/renpi/project.test.mjs extensions/renpi/bridge.test.mjs
-node extensions/renpi/bridge-sdk-check.mjs $sdk
-& $python -B extensions/renpi/client.test.py
-& $python -B extensions/renpi/client-sdk-check.py $env:RENPY_HOME
-& $python -B extensions/renpi/client-e2e-check.py $env:RENPY_HOME
+& $python -B ./extensions/renpi/validation_files.test.py SdkPathTests
 ```
 
-证据：`E:\PersonalAI\renpi\.omx\evidence\shared-bridge-20261013\RESULT.md`。
-真实 provider 自主创作、生图及已有私有触发器迁移独立验收；本轮保留
-`E:\RenPiValidation\noctuary-002` 原样。引擎在 GUI 出现前就发生语法错误的
-外部恢复路径、任意旧档结构迁移和 Windows 断电故障尚未完成端到端验收。
+### SDK 与引擎检查示例
 
-### Pi 1.1.0 本次验证（2026-10-11）
-
-- Node 内建检查 2/2：路径/链接边界、角色工具范围、错误与截断输出判定。
-- 实际 SDK 加载：发现 36 个技能，主模型与原有工具保持不变，注册 `renpi_delegate`；加载与预取消不创建项目任务状态。
-- SDK 集成检查：241 个断言、15 个场景通过，18 次可控 provider 请求、0 次外部模型请求、0 次网络尝试。覆盖 Review 真正读取随机标记、Writing 写入/编辑及越界保护、Image 工具集合、父子上下文/会话隔离、thinking、临时/测试磁盘认证、动态 provider 重注册、header 大小写/删除语义、手动压缩、取消、准备期/运行期退出清理、并发和切换保护、错误与空报告。
-- 真实 CLI RPC：`get_state`、`get_commands` 和 `/renpi-status` 成功，退出码 0。真实终端 PTY：1.1.0 TUI 列出技能/扩展，执行 `/renpi-status`，Ctrl+D 退出码 0。均使用隔离配置、离线模式和网络阻断；不代表有认证的完整创作流程。离线新配置提示未下载 fd/rg，相关搜索工具执行留待完整环境验收。
-- TypeScript 5.9.3 对两个 TS 源文件执行 strict 检查，0 诊断；跳过第三方声明内部检查。独立代码审查已通过。
-- 尚未对 1.1.0 发起真实 provider/OAuth 请求，未验证主模型自主委派、完整 TUI 初始化/创作、生图或 GUI 桥接。0.75.4 的既有真实调用证据仅作历史记录，不计入新版通过项。
-
-证据和可重跑的类型/CLI 检查：`E:\PersonalAI\renpi\.omx\evidence\pi110-20261011-223252`。本次未升级任何全局包、调整 PATH 或迁移个人配置/会话。
-
-## 回滚
-
-原扩展与技能布局保存在 `E:\PersonalAI\renpi\.omx\evidence\pi110-20261011-223252\baseline`，旧 SDK 已重新验证可加载此副本。退出新版后，使用旧 Pi 和原配置启动备份入口，无需覆盖当前源码或迁移后会话：
+这些命令不是一组必须连续执行的步骤，按上表选择。Pi SDK 入口与 Ren’Py SDK 目录是两个不同输入：
 
 ```powershell
-& 'C:\Users\18248\AppData\Local\pnpm\pi.CMD' --extension 'E:\PersonalAI\renpi\.omx\evidence\pi110-20261011-223252\baseline\extensions\renpi\index.ts'
+$piSdk = (Resolve-Path -LiteralPath (Read-Host 'Pi 1.1.0 安装中的 dist/index.js 路径')).Path
+$env:RENPY_HOME = (Resolve-Path -LiteralPath (Read-Host 'RenPy SDK 目录')).Path
+node ./extensions/renpi/load-check.mjs $piSdk
+node ./extensions/renpi/sdk-check.mjs $piSdk
+node ./extensions/renpi/bridge-lint-sdk-check.mjs
+node ./extensions/renpi/bridge-sdk-check.mjs $piSdk
 ```
 
-在原终端运行此回滚命令，或先恢复原 `PI_CODING_AGENT_DIR`；不要让旧 Pi 指向新版独立配置目录。
+仅在需要引擎运行或 GUI E2E 时选择以下入口；使用上一节设置的 `$python`：
+
+```powershell
+& $python -B ./extensions/renpi/client-sdk-check.py
+& $python -B ./extensions/renpi/client-e2e-check.py
+```
+
+两个 Python 驱动均按 **第一个位置参数 → `RENPY_HOME`** 选择 SDK；相对参数以当前工作目录解析，中文和空格路径作为一个参数传入。也可显式传入 `$env:RENPY_HOME`。显式参数无效时直接报错，不悄悄换用其他安装。创建临时工作区或服务前，先检查 `renpy.py`、`lib/py3-windows-x86_64/python.exe` 和 `renpy/common/`。
+
+## 维护与边界
+
+- 当前 SDK 校验路径针对 Windows x64；其他平台需单独适配与验证。当前入口固定 Pi 1.1.0，升级前按实际调用点核对 SDK 兼容性。
+- 已安装客户端与模板/安装记录不一致时，扩展连接阶段合并提示一次 Warning，继续使用项目脚本。后续安装仍保留冲突保护；提示不等于已完成更新。
+- 更新运行时 `.mjs` 后，保存成果并处理在途写入，再完整退出 Pi，以原项目和 `--session` 恢复会话。Pi 1.1.0 的原生 ESM 缓存可能跨 `/reload` 保留；桥接重新连接不等于新模块已加载。
+- 候选校验在隔离 SDK common 中跳过非 ASCII 文件名检查，并记录 `ignored_checks`；编译、其余 lint、来源一致性及加载确认仍生效。分发兼容性单独验收。
+- 验证输入使用[资产引用与回收规则](../../skills/renpi-initialization/references/project-contract.md#验证工作区与资产引用)：大文件与媒体/字体使用逐文件软链接，需具备相应系统权限，链接失败明确报错；正式安装和冻结候选保持独立产物。
+- 子会话沿用父模型运行时与认证，不复制密钥。只加载本角色技能及内建工具，不自动继承 MCP、父扩展工具或 Codex 图像工具。Image 需要已配置的后端；`pi-virtual` 模型路由不在当前支持范围内。
+- Writing 的写入限制与 Review 的只读工具是应用层边界；主 Pi 和 Image 的 shell 仍具有宿主用户权限。运行时路径保护不等于任意代码的系统级隔离。
+- 当前串行委派；中断后的已有输出按程序当前任务核对，再选择提交、Continue 或 Retry。共享代码修改、旧档迁移及外部作业恢复分别处理，不通过清空项目状态解决。
+- 检查脚本、历史报告和静态通过结果各有范围。真实 provider、生图、GUI 阅读、加载确认及分发分别验收；本说明不将历史结果视作当前版本已通过。
+
+公开文档只保存可复用操作与边界。本机验证回执、迁移快照和旧配置备份留在本地；版本回退使用自己保留的匹配源码、Pi 版本与配置，保留当前项目、存档和恢复材料。

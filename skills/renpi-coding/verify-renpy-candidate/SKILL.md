@@ -11,6 +11,8 @@ description: 对 Ren’Pi 完整 RPY 候选执行当前 SDK 编译、lint、引�
 
 ## 1. 在隔离候选工程执行静态检查
 
+准备工程先执行 [验证工作区与资产引用](../../renpi-initialization/references/project-contract.md#验证工作区与资产引用)：大文件与媒体资产只用软链接，独立可写输入和存档另行隔离；使用后按引用关系回收工作区，保留报告而非整份资产副本。
+
 公共 GUI 制作任务在执行范围允许时使用 `renpi_submit_candidate(job_id)`，由
 [桥接交付契约](../references/bridge-contract.md#制作与交付) 的公共策略校验。
 下列手工命令用于独立候选工程，不替代公共提交工具的结果。

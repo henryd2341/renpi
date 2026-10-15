@@ -1,0 +1,10 @@
+archive/
+isolated-sdk/
+sdk-common/
+layout-anchor/
+opening/
+saves/
+*.json
+*.txt
+check-assets.cjs
+hash-evidence.py

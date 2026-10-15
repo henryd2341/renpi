@@ -50,6 +50,33 @@ test('descriptor validation and independent projects', async t => {
   await assert.rejects(startBridge({ root: a.root }), /already alive/);
 });
 
+test('candidate validation links assets then freezes independent deliverables and retires scratch', async t => {
+  let buildRoot;
+  const f = await fixture(t, { validate: async build => {
+    buildRoot = build;
+    assert.equal((await fs.lstat(path.join(build, 'game/background.png'))).isSymbolicLink(), true);
+    for (const id of await fs.readdir(path.join(build, 'game/renpi_content'))) {
+      const content = path.join(build, 'game/renpi_content', id);
+      assert.equal((await fs.lstat(path.join(content, 'asset.png'))).isSymbolicLink(), true);
+      await fs.writeFile(path.join(content, 'scene.rpyc'), 'compiled');
+    }
+    return [{ command: ['compile'], code: 0 }, { command: ['lint'], code: 0 }];
+  } });
+  await fs.writeFile(path.join(f.root, 'game/background.png'), 'existing image');
+  await f.position(); await f.choose();
+  const job = await f.bridge.claimNext(); await f.content(job);
+  const asset = Buffer.alloc(1024 * 1024, 6);
+  await fs.writeFile(path.join(job.output, 'asset.png'), asset);
+  const ready = await f.bridge.submitCandidate(job.id);
+  const content = path.join(f.root, '.renpi-live/bridge/candidates', ready.candidate_id, 'content/asset.png');
+  assert.equal((await fs.lstat(content)).isSymbolicLink(), false);
+  assert.deepEqual(await fs.readFile(content), asset);
+  assert.deepEqual(await fs.readFile(path.join(job.output, 'asset.png')), asset);
+  await assert.rejects(fs.access(path.join(buildRoot, 'game')), { code: 'ENOENT' });
+  await fs.access(path.join(buildRoot, 'validation-links.json'));
+  assert.equal(ready.phase, 'ready');
+});
+
 test('idle claim does not traverse game assets or write durable state', async t => {
   const f = await fixture(t), statePath = path.join(f.root, '.renpi-live/bridge/state.json');
   const originalRead = fs.readdir, originalRename = fs.rename; let reads = 0, writes = 0;

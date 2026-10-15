@@ -226,3 +226,4 @@ prototypes/
 CONTEXT.md
 docs/**
 !docs/*.md
+**/cache/

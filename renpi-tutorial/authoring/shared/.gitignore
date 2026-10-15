@@ -1,0 +1,10 @@
+*
+!.gitignore
+!gui-kit
+!build-gui.cjs
+!gui-kit/README.md
+!svg/
+!*.svg
+!tutorial
+!tutorial/*.rpy
+!tutorial/writing/opening-base.rpy

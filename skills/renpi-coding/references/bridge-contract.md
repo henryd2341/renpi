@@ -12,7 +12,17 @@
    私有触发器需要显式迁移；公共安装器保留它们，不自动删除或同时接管请求。
 3. `/renpi-status` 核对 `gui_bridge.connected` 及错误。运行时随 Pi 会话连接、
    退出时释放连接；游戏等待并重连，不以断线触发新制作。
-4. 在剧情衔接点调用公共标签，仅传稳定声明，例如：
+4. 首次开场、角色定义和界面源码就绪后，关闭 GUI，在首个生产选择之前调用
+   `renpi_install_foundation`，例如 `{"source":"authoring/shared/tutorial","files":["options.rpy","screens.rpy","opening.rpy"]}`。
+   `source` 限项目内 `authoring/`，`files` 明确列出相对此目录的文件，按相同相对位置安装到
+   `game/`；不要选择 Writing 草稿、测试夹具或预览覆盖脚本。工具隔离 compile/lint，
+   相同字节资产复用，不同内容原件保留并报冲突；桥接、存档、生成分支路径受保护。
+   `.renpi-live/bridge/foundation.json` 的 `phase=installed` 是首次安装回执，
+   `runtime_tested=false`，与生产候选的 adoption/loaded ACK 不同。实际 GUI 可读仍须核对。
+   相同清单可重复核对；已有生产历史或变更已安装基础内容另走明确范围的修改流程。
+   若出现 `foundation.pending.json`，关闭 Pi/GUI 后按扩展 README 的离线命令用相同输入重跑，
+   保留日志和原始身份，完成前暂停阅读；不以删除日志或虚构生产 job 接续。
+5. 在剧情衔接点调用公共标签，仅传稳定声明，例如：
 
    ```renpy
    call renpi_choice("opening.choice", [("talk", "继续交谈"), ("rest", "准备休息")])

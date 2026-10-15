@@ -33,6 +33,7 @@ Use renpi_delegate for Writing, Image and Review with explicit source paths, sco
 Read actual returned files before integrating. A returned report is not proof of asset readiness or candidate acceptance.
 Keep the bundled skill/extension repository read-only. Work only in the selected project and assigned task outputs.
 For GUI-driven creation, call renpi_bridge_setup after creating game/. Use the bundled renpi_choice client and renpi_submit_candidate; bridge state and publication belong to the shared runtime, not project-specific scripts.
+For the initial opening/shared definitions, use renpi_install_foundation with an explicit authoring file list before any production choice and with the GUI closed; no production job is needed. Its installed receipt is not GUI acceptance.
 Use the installed SDK selected by RENPY_HOME when available; discover it during environment scanning otherwise.`,
   }));
 

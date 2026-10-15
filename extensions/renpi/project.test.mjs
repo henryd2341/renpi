@@ -43,14 +43,19 @@ test('conflicting client preflights all files without creating business state', 
   assert.equal(await fs.readFile(path.join(root, 'game/renpi_bridge.rpy'), 'utf8'), 'user-owned');
 });
 
-test('modified managed files and missing state are preserved, never reset', async t => {
+test('modified runtime warns without blocking reads; setup preserves edits and missing state', async t => {
   const root = await fixture(t);
-  await installProject(root);
+  const descriptor = await installProject(root);
   const target = path.join(root, runtimeFiles[0]);
   const bytes = await fs.readFile(target);
   await fs.appendFile(target, '\n# user edit\n');
-  await assert.rejects(readProject(root), /Managed runtime changed/);
+  const warnings = [];
+  assert.equal((await readProject(root, message => warnings.push(message))).project_id, descriptor.project_id);
+  assert.equal(warnings.length, 1);
+  assert(warnings[0].includes(runtimeFiles[0]));
+  assert.equal((await readProject(root)).project_id, descriptor.project_id);
   await assert.rejects(installProject(root), /Existing project file differs/);
+  assert.equal(await fs.readFile(target, 'utf8'), bytes.toString() + '\n# user edit\n');
   await fs.writeFile(target, bytes);
   await fs.unlink(path.join(root, '.renpi-live/bridge/state.json'));
   await assert.rejects(installProject(root), /state is missing/);

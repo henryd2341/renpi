@@ -3,7 +3,9 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
-import { digest, managedPath, atomicJSON, run, validateCandidateSDK } from './bridge-common.mjs';
+import { digest, managedPath, atomicJSON, run, validateCandidateSDK, tree, writeBytes, stageValidationFiles, finishValidationBuild } from './bridge-common.mjs';
+
+import { installFoundation } from './foundation.mjs';
 
 export const protocol = 'renpi-bridge-v1';
 const area = '.renpi-live/bridge';
@@ -25,28 +27,6 @@ export function initialState(descriptor) {
     branches: { [id]: { id, parent_id: null, fork_anchor: null, entry_label: 'start', status: 'base',
       job_id: null, candidate_id: null, published: true } },
     bindings: {}, jobs: {}, candidates: {}, requests: {}, adoption: null, recovery_required: false };
-}
-
-async function tree(root, relative = '', ignore = () => false) {
-  const directory = await managedPath(root, relative), files = [];
-  for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
-    const name = relative ? `${relative}/${entry.name}` : entry.name;
-    if (ignore(name)) continue;
-    const target = await managedPath(root, name);
-    if (entry.isDirectory()) files.push(...await tree(root, name, ignore));
-    else if (entry.isFile()) files.push({ path: name, bytes: await fs.readFile(target) });
-    else throw fault('only regular files and directories are supported');
-  }
-  return files.sort((a, b) => a.path.localeCompare(b.path));
-}
-
-async function writeBytes(file, bytes) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.${randomUUID()}.tmp`;
-  const handle = await fs.open(temporary, 'wx');
-  try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
-  try { await fs.rename(temporary, file); }
-  catch (error) { await fs.rm(temporary, { force: true }); throw error; }
 }
 
 export async function lockProject(directory, instance) {
@@ -114,7 +94,7 @@ export async function startBridge({ root, sdk, sessionId, validate = validateCan
     if (current) await fs.unlink(file);
     try { await fs.rmdir(directory); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   };
-  let server, closed = false, chain = Promise.resolve(), state;
+  let server, closed = false, foundationPending = false, chain = Promise.resolve(), state;
   const validations = new Map();
   const serial = operation => {
     const result = chain.then(() => { if (closed) throw fault('bridge is closed', 503); return operation(); });
@@ -179,7 +159,10 @@ export async function startBridge({ root, sdk, sessionId, validate = validateCan
     next.jobs[id] = job; branch.job_id = id; branch.status = 'queued'; delete branch.error;
     return job;
   };
-  const writable = () => { if (state.recovery_required || activeAdoption(state.adoption)) throw fault('resolve the pending adoption before other writes'); };
+  const writable = () => {
+    if (foundationPending) throw fault('Resolve the interrupted foundation installation before production.');
+    if (state.recovery_required || activeAdoption(state.adoption)) throw fault('resolve the pending adoption before other writes');
+  };
   const summary = branch => ({ branch_id: branch.id, job_id: branch.job_id, candidate_id: branch.candidate_id,
     entry_label: branch.entry_label, phase: branch.status });
 
@@ -320,17 +303,21 @@ export async function startBridge({ root, sdk, sessionId, validate = validateCan
       checkScripts(input, branch);
       const build = await location(`builds/${candidateId}`), buildGame = path.join(build, 'game');
       await fs.mkdir(buildGame, { recursive: true });
-      for (const file of await gameFiles()) {
-        if (file.path.startsWith(`renpi_content/${branch.id}/`)) continue;
-        await writeBytes(await managedPath(buildGame, file.path), file.bytes);
-      }
-      for (const file of input) await writeBytes(await managedPath(buildGame, `renpi_content/${branch.id}/${file.path}`), file.bytes);
+      const links = await stageValidationFiles(buildGame, await managedPath(root, 'game'),
+        (await gameFiles()).filter(file => !file.path.startsWith(`renpi_content/${branch.id}/`)));
+      await stageValidationFiles(buildGame, job.output, input, `renpi_content/${branch.id}/`, links);
+      const staged = (await tree(buildGame, '', () => false, links)).map(file => ({ path: file.path, sha256: digest(file.bytes) }));
+      await atomicJSON(path.join(build, 'validation-inputs.json'), staged);
       const reports = await validate(build, sdk);
       if (job.source_basis !== await sourceBasis()) throw fault('job source basis changed during validation');
       if (!Array.isArray(reports) || !reports.length || reports.some(report => report.code !== 0)) throw fault('SDK validation has no successful evidence');
       if (reports.some(report => /Traceback \(most recent call last\)|PermissionError:/.test(report.output ?? '')))
         throw fault('SDK reported an exception despite its exit status');
-      const built = await tree(await managedPath(buildGame, `renpi_content/${branch.id}`));
+      const checked = await tree(buildGame, '', () => false, links);
+      const checkedHashes = new Map(checked.map(file => [file.path, digest(file.bytes)]));
+      if (staged.some(file => checkedHashes.get(file.path) !== file.sha256))
+        throw fault('validation inputs changed during SDK checks');
+      const built = await tree(await managedPath(buildGame, `renpi_content/${branch.id}`), '', () => false, links);
       if (!built.some(file => file.path === 'scene.rpyc')) throw fault('SDK compile produced no scene.rpyc');
       if (input.some(file => !built.some(other => other.path === file.path && other.bytes.equals(file.bytes)))) throw fault('candidate source changed during validation');
       const manifest = { format_version: 1, project_id: state.project_id, candidate_id: candidateId, branch_id: branch.id,
@@ -340,6 +327,8 @@ export async function startBridge({ root, sdk, sessionId, validate = validateCan
       const manifestPath = await location(`candidates/${candidateId}/manifest.json`);
       await atomicJSON(manifestPath, manifest);
       const manifestHash = digest(await fs.readFile(manifestPath));
+      await atomicJSON(path.join(build, 'validation-reports.json'), reports);
+      await finishValidationBuild(build, links);
       return await serial(async () => {
         const next = clone(state), current = next.jobs[id], target = next.branches[job.branch_id];
         next.candidates[candidateId] = { id: candidateId, branch_id: branch.id, job_id: id,
@@ -368,6 +357,7 @@ export async function startBridge({ root, sdk, sessionId, validate = validateCan
   }
 
   try {
+    if (await exists(await location('foundation.pending.json'))) throw fault('Resolve the interrupted foundation installation offline before connecting.');
     const saved = await exists(await location('state.json'));
     if (!saved) throw fault('project state is missing; restore its state rather than resetting history');
     state = JSON.parse(saved);
@@ -425,6 +415,10 @@ export async function startBridge({ root, sdk, sessionId, validate = validateCan
       port: server.address().port, token_file: tokenFile, instance_id: instance, pid: process.pid, session_id: sessionId ?? null });
     return {
       status: () => clone(state), dispatch,
+      installFoundation: (source, files, signal) => serial(async () => {
+        try { return await installFoundation({ root, sdk, state, source, files, signal, validate }); }
+        finally { foundationPending = Boolean(await exists(await location('foundation.pending.json'))); }
+      }),
       submitCandidate: id => {
         if (validations.has(id)) return validations.get(id);
         const pending = submitCandidate(id); validations.set(id, pending);

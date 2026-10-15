@@ -14,6 +14,7 @@ export function registerBridge(pi: ExtensionAPI, delegation: { busy: () => boole
   let currentJob: string | undefined;
   let stopping = false;
   let connectionError: string | undefined;
+  let runtimeWarningShown = false;
 
   const status = () => ({ connected: Boolean(bridge), error: connectionError,
     runtime: bridge?.status() ?? null });
@@ -24,7 +25,7 @@ export function registerBridge(pi: ExtensionAPI, delegation: { busy: () => boole
       const job = bridge.status().jobs[currentJob];
       if (job?.status === 'cancelled') { delegation.abort(); ctx.abort(); }
     }
-    if (currentJob || delegation.busy() || !ctx.isIdle()) return;
+    if (currentJob || submitting || delegation.busy() || !ctx.isIdle()) return;
     const waiting = bridge.status();
     if (waiting.recovery_required || ['prepared', 'awaiting_load', 'recovery_failed'].includes(waiting.adoption?.phase)) return;
     const job = await bridge.claimNext();
@@ -61,7 +62,11 @@ export function registerBridge(pi: ExtensionAPI, delegation: { busy: () => boole
 
   async function connect(ctx: ExtensionContext) {
     if (bridge) return;
-    const project = await readProject(ctx.cwd);
+    const project = await readProject(ctx.cwd, message => {
+      if (runtimeWarningShown) return;
+      runtimeWarningShown = true;
+      ctx.ui.notify(message, 'warning');
+    });
     if (!project) return;
     stopping = false;
     bridge = await startBridge({ root: ctx.cwd, sdk: process.env.RENPY_HOME,
@@ -138,6 +143,22 @@ export function registerBridge(pi: ExtensionAPI, delegation: { busy: () => boole
       signal?.throwIfAborted();
       const result = await setup(ctx);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], details: result };
+    },
+  });
+  pi.registerTool({
+    name: 'renpi_install_foundation', label: 'Install initial Ren’Pi foundation',
+    description: 'After bridge setup, install an explicit list of files from an authoring directory into game at identical relative paths. Use only before the first production choice, with the GUI closed. Performs isolated SDK compile/lint; preserves existing identical assets and rejects conflicting files. This is initial installation, not a generated job, loaded ACK, or shared-content update.',
+    parameters: Type.Object({ source: Type.String({ minLength: 1 }), files: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }) }),
+    async execute(_id, { source, files }, signal, _update, ctx) {
+      signal?.throwIfAborted();
+      if (!bridge || unsettled() || delegation.busy()) throw new Error('Connect the bridge and finish outstanding work before installing the foundation.');
+      await readProject(ctx.cwd);
+      const pending = bridge.installFoundation(source, files, signal);
+      submitting = pending;
+      try {
+        const result = await pending;
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], details: result };
+      } finally { submitting = undefined; }
     },
   });
   pi.registerTool({

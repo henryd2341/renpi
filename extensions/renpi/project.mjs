@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { atomicJSON, digest, managedPath } from './bridge-common.mjs';
 import { initialState, lockProject } from './bridge.mjs';
+import { installFoundation } from './foundation.mjs';
 
 export const protocol = 'renpi-bridge-v1';
 export const runtimeFiles = ['game/python-packages/renpi_bridge.py', 'game/renpi_bridge.rpy'];
@@ -21,20 +22,26 @@ function validateDescriptor(value) {
   return value;
 }
 
-export async function readProject(root) {
+/**
+ * @param {string} root
+ * @param {(message: string) => void} [onRuntimeWarning]
+ */
+export async function readProject(root, onRuntimeWarning) {
   root = await fs.realpath(root);
   const descriptor = await optional(await managedPath(root, `${control}/project.json`));
   if (!descriptor) return null;
   validateDescriptor(descriptor);
   const installed = await read(await managedPath(root, `${control}/runtime.json`));
   if (installed.protocol !== protocol || installed.project_id !== descriptor.project_id) throw new Error('Bridge runtime ownership mismatch.');
+  const changed = [];
   for (const relative of runtimeFiles) {
     const bytes = await fs.readFile(await managedPath(root, relative));
-    if (digest(bytes) !== installed.files?.[relative]) throw new Error(`Managed runtime changed: ${relative}. Preserve edits before setup.`);
-    if (digest(bytes) !== digest(await fs.readFile(path.join(template, relative)))) throw new Error('Run /renpi-setup to update the bundled runtime before connecting.');
+    const hash = digest(bytes);
+    if (hash !== installed.files?.[relative] || hash !== digest(await fs.readFile(path.join(template, relative)))) changed.push(relative);
   }
   const state = await read(await managedPath(root, `${control}/state.json`));
   if (state.project_id !== descriptor.project_id || state.base_branch_id !== descriptor.base_branch_id) throw new Error('Bridge project/state identity mismatch.');
+  if (changed.length) onRuntimeWarning?.(`Ren’Pi bridge runtime differs from its installation record or bundled version: ${changed.join(', ')}. Continuing with project files; local edits are preserved.`);
   return descriptor;
 }
 
@@ -90,5 +97,16 @@ export async function installProject(root) {
     await atomicJSON(descriptorPath, descriptor);
     await fs.unlink(pendingPath);
     return { ...descriptor, updated_files: writes.map(item => path.relative(root, item.target)), files };
+  } finally { await release(); }
+}
+
+export async function installFoundationProject(root, source, files, options = {}) {
+  root = await fs.realpath(root);
+  if (!await readProject(root)) throw new Error('Run bridge setup before installing the foundation.');
+  const release = await lockProject(await managedPath(root, `${control}/writer.lock`), randomUUID());
+  try {
+    await readProject(root);
+    const state = await read(await managedPath(root, `${control}/state.json`));
+    return await installFoundation({ ...options, root, state, source, files, sdk: options.sdk ?? process.env.RENPY_HOME });
   } finally { await release(); }
 }

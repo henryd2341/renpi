@@ -9,11 +9,12 @@ import tempfile
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from validation_files import sdk_path, stage_file
 
-sdk = Path(sys.argv[1] if len(sys.argv) > 1 else "E:/Renpy/renpy-8.5.3-sdk")
+sdk = sdk_path(sys.argv[1] if len(sys.argv) > 1 else None)
 root = Path(tempfile.gettempdir()) / ("renpi-sdk-client-" + str(uuid.uuid4()))
 os.mkdir(root)
-shutil.copytree(Path(__file__).parent / "template/game", root / "game")
+shutil.copytree(Path(__file__).parent / "template/game", root / "game", copy_function=stage_file)
 control = root / ".renpi-live/bridge"
 control.mkdir(parents=True)
 descriptor = dict(format_version=1, protocol="renpi-bridge-v1", project_id="sdk-test", base_branch_id="base")
@@ -94,7 +95,8 @@ label start:
     pause
 ''', encoding="utf-8")
 common = root / "common"
-shutil.copytree(sdk / "renpy/common", common)
+shutil.copytree(sdk / "renpy/common", common, copy_function=stage_file,
+                ignore=shutil.ignore_patterns("*.rpyc", "*.rpymc", "*.pyc", "__pycache__"))
 wrapper = root / "run-sdk.py"
 wrapper.write_text("import importlib.util, sys\nspec=importlib.util.spec_from_file_location('sdk_main', " + repr(str(sdk / "renpy.py")) + ")\nm=importlib.util.module_from_spec(spec)\nsys.modules['sdk_main']=m\nspec.loader.exec_module(m)\nm.path_to_common=lambda base: " + repr(str(common)) + "\nm.main()\n")
 executable = sdk / "lib/py3-windows-x86_64/python.exe"

@@ -70,12 +70,15 @@ screen renpi_bridge_choice(anchor, choices, source):
             text "Ren'Pi — [anchor]"
             if _renpi_client().error:
                 text _renpi_client().error substitute False
-            elif _renpi_client().busy:
+            # Background status polls should not flash a waiting message.
+            elif _renpi_client().busy and (_renpi_client().pending or not _renpi_client().state):
                 text "Waiting for the bridge…"
             elif _renpi_client().pending:
                 text "An unresolved request is retained. Reconnect resends the same request ID."
             elif target:
                 text ("Branch: " + str(target.get("status", "waiting"))) substitute False
+            else:
+                text " "
             if _renpi_client().pending or _renpi_client().error:
                 textbutton "Reconnect / resend same request" action Function(_renpi_action, _renpi_client().reconnect) sensitive not _renpi_client().busy
             elif renpi_pending_adoption:

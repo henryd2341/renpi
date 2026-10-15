@@ -5,6 +5,42 @@ import { spawn } from 'node:child_process';
 
 export const digest = value => createHash('sha256').update(value).digest('hex');
 
+export const validationCopyLimit = 1024 * 1024;
+const mediaFile = /\.(png|apng|jpe?g|webp|gif|avif|bmp|tga|tiff?|svg|ico|ogg|opus|mp3|wav|flac|aac|aiff?|m4a|mp4|m4v|mkv|mpe?g|webm|ogv|avi|mov|tt[fc]|otf|woff2?|rpa)$/i;
+const writableFile = /\.(rpy|rpym|rpyc|rpymc|py|pyc|pyo)$/i;
+
+// Only this staging path grants file-link reads; ordinary managed paths still reject links.
+export async function stageValidationFiles(destination, sourceRoot, files, prefix = '', links = new Map()) {
+  destination = path.resolve(destination); sourceRoot = path.resolve(sourceRoot);
+  for (const root of [destination, sourceRoot]) await managedPath(path.parse(root).root, path.relative(path.parse(root).root, root));
+  for (const file of files) {
+    const source = await fs.realpath(await managedPath(sourceRoot, file.path));
+    const target = await managedPath(destination, `${prefix}${file.path}`);
+    const linked = file.bytes.length >= validationCopyLimit || mediaFile.test(file.path);
+    if (linked && writableFile.test(file.path)) throw new Error(`Oversized writable validation input: ${file.path}; split or separately isolate it before validation.`);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    if (linked) {
+      try { await fs.symlink(source, target, 'file'); }
+      catch (cause) { throw new Error(`Validation requires a file symlink for ${file.path}; enable symlink permission and retry. No copy fallback.`, { cause }); }
+      links.set(target, { sourceRoot, relative: file.path, target: source, sha256: digest(file.bytes) });
+    } else await writeBytes(target, file.bytes);
+  }
+  return links;
+}
+
+export async function finishValidationBuild(build, links) {
+  build = path.resolve(build);
+  await managedPath(path.parse(build).root, path.relative(path.parse(build).root, build));
+  await atomicJSON(await managedPath(build, 'validation-links.json'), [...links].map(([file, link]) => ({
+    path: path.relative(build, file), target: link.target, sha256: link.sha256,
+  })));
+  // Drop only owned scratch inputs after evidence/artifacts are secured, never linked sources.
+  for (const name of ['game', 'common']) {
+    const target = await managedPath(build, name);
+    await fs.rm(target, { recursive: true, force: true });
+  }
+}
+
 export async function managedPath(root, relative) {
   const target = path.resolve(root, relative), rel = path.relative(root, target);
   if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('managed path leaves fixture');
@@ -54,7 +90,10 @@ export async function validateCandidateSDK(project, sdk) {
   const entry = path.join(sdk, 'renpy.py');
   await fs.access(python); await fs.access(entry);
   const common = path.join(project, 'common');
-  await fs.cp(path.join(sdk, 'renpy', 'common'), common, { recursive: true, errorOnExist: true, force: false });
+  const sourceCommon = await fs.realpath(path.join(sdk, 'renpy', 'common'));
+  const commonFiles = await tree(sourceCommon, '', name => /(^|\/)__pycache__(\/|$)|\.(rpyc|rpymc|pyc|pyo)$/i.test(name));
+  const commonLinks = await stageValidationFiles(common, sourceCommon, commonFiles);
+  await atomicJSON(path.join(project, 'validation-sdk-links.json'), [...commonLinks.values()]);
   // shortcut: this isolated hook uses an SDK internal checker; review it on RenPy upgrades.
   await fs.writeFile(path.join(common, 'renpi_lint_policy.rpy'), `init 999 python hide:
     import renpy.lint as lint
@@ -74,5 +113,46 @@ export async function validateCandidateSDK(project, sdk) {
       throw Object.assign(new Error(`SDK ${command[0]} failed: ${result.output}`), { validation_reports: reports });
     }
   }
+  await tree(common, '', () => false, commonLinks);
   return reports;
+}
+
+export async function tree(root, relative = '', ignore = () => false, links = new Map()) {
+  if (!relative) {
+    for (const file of links.keys()) {
+      const name = path.relative(root, file);
+      if (name.startsWith('..') || path.isAbsolute(name)) continue;
+      await managedPath(root, path.dirname(name));
+      if (!(await fs.lstat(file)).isSymbolicLink()) throw new Error(`Validation link changed: ${name}`);
+    }
+  }
+  const directory = await managedPath(root, relative), files = [];
+  for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+    const name = relative ? `${relative}/${entry.name}` : entry.name;
+    if (ignore(name)) continue;
+    const linkPath = path.join(directory, entry.name), link = links.get(linkPath);
+    if (link) {
+      if (!entry.isSymbolicLink() || await fs.readlink(linkPath) !== link.target ||
+          await fs.realpath(await managedPath(path.parse(link.target).root, path.relative(path.parse(link.target).root, link.target))) !== link.target)
+        throw new Error(`Validation link changed: ${name}`);
+      const bytes = await fs.readFile(linkPath);
+      if (digest(bytes) !== link.sha256) throw new Error(`Validation linked source changed: ${name}`);
+      files.push({ path: name, bytes });
+      continue;
+    }
+    const target = await managedPath(root, name);
+    if (entry.isDirectory()) files.push(...await tree(root, name, ignore, links));
+    else if (entry.isFile()) files.push({ path: name, bytes: await fs.readFile(target) });
+    else throw Object.assign(new Error('only regular files and directories are supported'), { status: 409 });
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+export async function writeBytes(file, bytes) {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  const handle = await fs.open(temporary, 'wx');
+  try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+  try { await fs.rename(temporary, file); }
+  catch (error) { await fs.rm(temporary, { force: true }); throw error; }
 }

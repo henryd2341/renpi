@@ -1,0 +1,4 @@
+Attribution to non-AI-generated assets.
+audio/sample bgm 1.mp3: Gu-dara - Yezoshika (https://5th.unisphere.tv/)
+audio/sample bgm 2.mp3: 13. Iris - A Time for Everything (https://5th.unisphere.tv/)
+gui/main_menu.jpg: Photo by Kevin Schmid on Unsplash (https://unsplash.com/photos/a-long-straight-road-through-a-dry-open-landscape-ldQh3wZNW5M)
