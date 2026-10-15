@@ -7,7 +7,7 @@ import {
   createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager, SettingsManager, VERSION,
   type ExtensionAPI, type AgentSession,
 } from '@earendil-works/pi-coding-agent';
-import { artifactFiles, checkWritePath, inside, lastAnswer, roles } from './runtime.mjs';
+import { artifactFiles, checkWritePath, inside, lastAnswer, meetsPiVersionRequirement, roles } from './runtime.mjs';
 import { createDelegatedRuntime } from './model-runtime.ts';
 import { registerBridge } from './bridge-extension.ts';
 
@@ -16,7 +16,7 @@ const init = path.join(skills, 'renpi-initialization/initialize-game/SKILL.md');
 const coding = path.join(skills, 'renpi-coding/code-renpy-game/SKILL.md');
 
 export default function renpi(pi: ExtensionAPI) {
-  if (VERSION !== '1.1.0') throw new Error(`Ren’Pi targets Pi 1.1.0; this process is Pi ${VERSION}. Check the Pi executable path.`);
+  if (!meetsPiVersionRequirement(VERSION)) throw new Error(`Ren’Pi requires Pi >=1.1.0 (stable release); this process is Pi ${VERSION}. Check the Pi executable path.`);
   const children = new Set<AgentSession>();
   let active: { controller: AbortController; done: Promise<void> } | undefined;
   const bridgeControl = registerBridge(pi, { busy: () => Boolean(active), abort: () => active?.controller.abort() });

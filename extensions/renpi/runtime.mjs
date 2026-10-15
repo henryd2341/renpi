@@ -7,6 +7,13 @@ export const roles = {
   review: { group: 'renpi-review', entry: 'review-renpy-candidate', tools: ['read', 'grep', 'find', 'ls'] },
 };
 
+export function meetsPiVersionRequirement(version) {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(version);
+  if (!match || match[0] !== version) return false;
+  const [major, minor, patch] = match.slice(1, 4).map(Number);
+  return [major, minor, patch].every(Number.isSafeInteger) && (major > 1 || (major === 1 && minor >= 1));
+}
+
 // Resolve existing ancestors too, so a junction inside the project does not redirect writes elsewhere.
 export function canonical(file) {
   try { return fs.realpathSync(file); }

@@ -3,7 +3,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { artifactFiles, checkWritePath, inside, lastAnswer, roles } from './runtime.mjs';
+import { artifactFiles, checkWritePath, inside, lastAnswer, meetsPiVersionRequirement, roles } from './runtime.mjs';
+
+test('Pi version requirement accepts stable releases >=1.1.0', () => {
+  for (const version of ['1.1.0', '1.1.1', '1.2.0', '1.10.0', '2.0.0', '10.0.0', '1.1.0+build.001']) {
+    assert.equal(meetsPiVersionRequirement(version), true, version);
+  }
+  for (const version of ['0.75.4', '0.99.99', '1.0.0', '1.0.99', '1.0.99+build',
+    '1.1.0-beta.1', '1.2.0-rc.1', '2.0.0-alpha+build', '', 'latest', '1.1', 'v1.1.0',
+    '01.1.0', '1.01.0', '1.1.00', '1.1.-1', '1.1.0.1', '1.1.0+', '1.1.0+build..1',
+    '1.1.0+bad_name', ' 1.1.0', '1.1.0\n', '9007199254740992.0.0', undefined, null]) {
+    assert.equal(meetsPiVersionRequirement(version), false, String(version));
+  }
+});
 
 test('role boundaries, paths and actual artifacts', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'renpi-path-'));

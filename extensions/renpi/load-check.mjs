@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { meetsPiVersionRequirement } from './runtime.mjs';
 
 if (!process.argv[2]) throw new Error('Pass the installed Pi SDK dist/index.js absolute path.');
 const sdk = await import(pathToFileURL(path.resolve(process.argv[2])).href);
-assert.equal(sdk.VERSION, '1.1.0', 'Pass the Pi 1.1.0 SDK, not the older executable on PATH.');
+assert(meetsPiVersionRequirement(sdk.VERSION), `Pass a Pi >=1.1.0 stable SDK; received ${sdk.VERSION}.`);
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'renpi-load-'));
 let session;
 try {
@@ -44,7 +45,7 @@ try {
   const foundation = extension.tools.get('renpi_install_foundation').definition;
   await assert.rejects(foundation.execute('cancel-foundation', { source: 'authoring/shared', files: ['opening.rpy'] }, controller.signal, undefined, {}));
   assert(!fs.existsSync(path.join(root, '.renpi-live')), 'load and pre-cancel create no project state');
-  console.log(JSON.stringify({ status: 'passed', skills: names.length, tools: session.getActiveToolNames(),
+  console.log(JSON.stringify({ status: 'passed', pi_version: sdk.VERSION, skills: names.length, tools: session.getActiveToolNames(),
     model_preserved: true, model_requests: 0, project_state_created: false }, null, 2));
 } finally {
   if (session) { await session.abort(); session.dispose(); }

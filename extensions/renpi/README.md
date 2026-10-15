@@ -1,20 +1,22 @@
 # Ren’Pi 扩展
 
-Ren’Pi 的 Pi 入口、专业委派与公共 GUI 桥接。当前入口要求 **Pi 1.1.0**；引擎校验器使用 **Windows x64 Ren’Py SDK** 的目录布局。模型、认证和工具沿用当前父 Pi 会话。
+Ren’Pi 的 Pi 入口、专业委派与公共 GUI 桥接。当前入口要求 **Pi >=1.1.0（正式版）**；引擎校验器使用 **Windows x64 Ren’Py SDK** 的目录布局。模型、认证和工具沿用当前父 Pi 会话。
+
+**最低要求不等于已验证范围：** 1.1.0 和 1.2.0 均满足版本门禁，更高正式版也允许尝试，预发布版暂不接受。先用下文的 `load-check.mjs` 和 `sdk-check.mjs` 检查实际安装，再按需验证桥接、GUI 与真实服务。通过版本门禁不等于兼容性验收通过。
 
 ## 启动
 
-准备已安装的 Pi 1.1.0、Ren’Py SDK 和游戏项目目录。在本仓库根目录打开 PowerShell，按本机实际安装位置填写：
+准备已安装的 Pi 1.1.0 或更高正式版、Ren’Py SDK 和游戏项目目录。在本仓库根目录打开 PowerShell，按本机实际安装位置填写：
 
 ```powershell
 $repo = (Get-Location).Path
-$pi = Read-Host 'Pi 1.1.0 入口文件的完整路径（例如已安装的 pi.cmd）'
+$pi = Read-Host 'Pi 入口文件的完整路径（>=1.1.0 正式版，例如已安装的 pi.cmd）'
 $project = (Resolve-Path -LiteralPath (Read-Host '游戏项目目录')).Path
 $env:RENPY_HOME = (Resolve-Path -LiteralPath (Read-Host 'RenPy SDK 目录')).Path
 & $pi --version
 ```
 
-确认版本输出为 `1.1.0`，再加载扩展：
+确认版本输出为 `1.1.0` 或更高正式版（例如 `1.2.0`），再加载扩展：
 
 ```powershell
 Set-Location -LiteralPath $project
@@ -106,7 +108,7 @@ node --test --test-isolation=none $tests.FullName
 这些命令不是一组必须连续执行的步骤，按上表选择。Pi SDK 入口与 Ren’Py SDK 目录是两个不同输入：
 
 ```powershell
-$piSdk = (Resolve-Path -LiteralPath (Read-Host 'Pi 1.1.0 安装中的 dist/index.js 路径')).Path
+$piSdk = (Resolve-Path -LiteralPath (Read-Host '待测 Pi 安装中的 dist/index.js 路径（>=1.1.0 正式版）')).Path
 $env:RENPY_HOME = (Resolve-Path -LiteralPath (Read-Host 'RenPy SDK 目录')).Path
 node ./extensions/renpi/load-check.mjs $piSdk
 node ./extensions/renpi/sdk-check.mjs $piSdk
@@ -125,9 +127,9 @@ node ./extensions/renpi/bridge-sdk-check.mjs $piSdk
 
 ## 维护与边界
 
-- 当前 SDK 校验路径针对 Windows x64；其他平台需单独适配与验证。当前入口固定 Pi 1.1.0，升级前按实际调用点核对 SDK 兼容性。
+- 当前 SDK 校验路径针对 Windows x64；其他平台需单独适配与验证。当前入口要求 Pi >=1.1.0 正式版，无版本上限；升级前按实际调用点核对 SDK 兼容性，尤其是主版本升级。
 - 已安装客户端与模板/安装记录不一致时，扩展连接阶段合并提示一次 Warning，继续使用项目脚本。后续安装仍保留冲突保护；提示不等于已完成更新。
-- 更新运行时 `.mjs` 后，保存成果并处理在途写入，再完整退出 Pi，以原项目和 `--session` 恢复会话。Pi 1.1.0 的原生 ESM 缓存可能跨 `/reload` 保留；桥接重新连接不等于新模块已加载。
+- 更新运行时 `.mjs` 后，保存成果并处理在途写入，再完整退出 Pi，以原项目和 `--session` 恢复会话。原生 ESM 模块缓存曾在 Pi 1.1.0 的 `/reload` 中保留；测试新版本时也使用完整重启，桥接重新连接不等于新模块已加载。
 - 候选校验在隔离 SDK common 中跳过非 ASCII 文件名检查，并记录 `ignored_checks`；编译、其余 lint、来源一致性及加载确认仍生效。分发兼容性单独验收。
 - 验证输入使用[资产引用与回收规则](../../skills/renpi-initialization/references/project-contract.md#验证工作区与资产引用)：大文件与媒体/字体使用逐文件软链接，需具备相应系统权限，链接失败明确报错；正式安装和冻结候选保持独立产物。
 - 子会话沿用父模型运行时与认证，不复制密钥。只加载本角色技能及内建工具，不自动继承 MCP、父扩展工具或 Codex 图像工具。Image 需要已配置的后端；`pi-virtual` 模型路由不在当前支持范围内。
